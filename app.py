@@ -1,45 +1,60 @@
-
 import streamlit as st
 import pandas as pd
-import numpy as np
+import plotly.express as px
+import datetime
 
-from fred_fetcher import get_fred_series
-from cot_fetcher import fetch_cot_sample
-from news_fetcher import fetch_rss_headlines
+st.set_page_config(layout='wide')
+st.title("📊 Market Direction Indicator")
 
-st.set_page_config(page_title="Market Direction Indicator", layout="wide")
-st.title("📈 Market Direction Indicator")
-st.markdown("Live dashboard with fundamentals, sentiment, and geopolitical insights.")
+# Sample time series data
+date_range = pd.date_range(start='2024-01-01', periods=100, freq='D')
+assets = ['EUR/USD', 'SPX', 'AAPL', 'USD/JPY', 'DAX', 'TSLA']
+asset_data = {
+    asset: {
+        "Date": date_range,
+        "Fundamentals": pd.Series(range(50 + i, 150 + i)),
+        "Sentiment": pd.Series(range(60 + i, 160 + i)),
+        "Geopolitical Risk": pd.Series(range(30 + i, 130 + i))
+    }
+    for i, asset in enumerate(assets)
+}
 
-# === Section 1: Fundamentals ===
-st.header("📊 Fundamentals (FRED)")
+# Alerts logic
+def show_alerts(df, asset):
+    last = df.iloc[-1]
+    if last['Fundamentals'] > 70:
+        st.toast(f"📈 {asset} Fundamentals: {last['Fundamentals']} (Strong Bullish)", icon="✅")
+        play_sound()
+    if last['Sentiment'] < 30:
+        st.toast(f"📉 {asset} Sentiment: {last['Sentiment']} (Strong Bearish)", icon="⚠️")
+        play_sound()
+    if last['Geopolitical Risk'] > 65:
+        st.toast(f"⚠️ {asset} Geopolitical Risk: {last['Geopolitical Risk']} (High Tension)", icon="🚨")
+        play_sound()
 
-try:
-    fed_funds = get_fred_series("FEDFUNDS")
-    latest_rate = fed_funds['value'].iloc[-1]
-    st.metric("Federal Funds Rate (Latest)", f"{latest_rate:.2f}%")
-    st.line_chart(fed_funds.set_index('date')['value'], height=200)
-except Exception as e:
-    st.error(f"Failed to fetch FRED data: {e}")
+# Sound trigger using HTML/JS
+def play_sound():
+    sound_html = '''
+    <audio autoplay>
+        <source src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" type="audio/ogg">
+    </audio>
+    '''
+    st.markdown(sound_html, unsafe_allow_html=True)
 
-# === Section 2: Sentiment (COT) ===
-st.header("💬 COT Sentiment Scores")
+# Chart rendering
+tabs = st.tabs(assets)
+for i, asset in enumerate(assets):
+    with tabs[i]:
+        st.subheader(f"{asset} Historical Data")
+        df = pd.DataFrame(asset_data[asset])
+        for metric in ['Fundamentals', 'Sentiment', 'Geopolitical Risk']:
+            fig = px.line(df, x="Date", y=metric, title=f"{asset} - {metric}", template="plotly_dark")
+            st.plotly_chart(fig, use_container_width=True)
 
-try:
-    cot_df = fetch_cot_sample()
-    st.dataframe(cot_df, use_container_width=True)
-except Exception as e:
-    st.error(f"Failed to fetch COT sentiment data: {e}")
+        show_alerts(df, asset)
 
-# === Section 3: Geopolitical News ===
-st.header("🌍 Geopolitical & Market News")
-
-try:
-    news_df = fetch_rss_headlines()
-    for index, row in news_df.iterrows():
-        st.markdown(f"- [{row['title']}]({row['link']}) — *{row['published']}*")
-except Exception as e:
-    st.error(f"Failed to fetch news headlines: {e}")
-
-st.markdown("---")
-st.markdown("✅ Live integrations from **FRED**, **COT**, and **ForexFactory RSS** are now active.")
+        # Log simulated score
+        today = datetime.date.today().isoformat()
+        latest_row = df.iloc[-1].to_frame().T
+        latest_row.insert(0, "Asset", asset)
+        latest_row.to_csv(f"history_{asset.replace('/', '')}.csv", mode='a', index=False, header=False)
