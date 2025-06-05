@@ -1,39 +1,45 @@
 
 import streamlit as st
 import pandas as pd
+import numpy as np
+
+from fred_fetcher import get_fred_series
+from cot_fetcher import fetch_cot_sample
+from news_fetcher import fetch_rss_headlines
 
 st.set_page_config(page_title="Market Direction Indicator", layout="wide")
-
 st.title("📈 Market Direction Indicator")
+st.markdown("Live dashboard with fundamentals, sentiment, and geopolitical insights.")
 
-st.markdown("""
-This is a prototype for tracking market direction using a blend of:
-- 📊 **Fundamentals**
-- 💬 **Sentiment**
-- 🌍 **Geopolitical events**
+# === Section 1: Fundamentals ===
+st.header("📊 Fundamentals (FRED)")
 
-Initial assets tracked:
-- EUR/USD
-- SPX (S&P 500)
-- AAPL
-- GBP/USD
-- XAU/USD (Gold)
-- USOIL (WTI Crude)
-- USTECH 100 (NASDAQ)
+try:
+    fed_funds = get_fred_series("FEDFUNDS")
+    latest_rate = fed_funds['value'].iloc[-1]
+    st.metric("Federal Funds Rate (Latest)", f"{latest_rate:.2f}%")
+    st.line_chart(fed_funds.set_index('date')['value'], height=200)
+except Exception as e:
+    st.error(f"Failed to fetch FRED data: {e}")
 
-Coming soon: Live data integrations, scoring system, and visual indicators.
-""")
+# === Section 2: Sentiment (COT) ===
+st.header("💬 COT Sentiment Scores")
 
-# Sample placeholder data
-data = {
-    "Asset": ["EUR/USD", "SPX", "AAPL", "GBP/USD", "XAU/USD", "USOIL", "USTECH 100"],
-    "Fundamental Score": [65, 80, 75, 60, 70, 55, 78],
-    "Sentiment Score": [50, 85, 77, 45, 67, 53, 81],
-    "Geopolitical Risk": [20, 10, 15, 25, 30, 35, 12]
-}
-df = pd.DataFrame(data)
+try:
+    cot_df = fetch_cot_sample()
+    st.dataframe(cot_df, use_container_width=True)
+except Exception as e:
+    st.error(f"Failed to fetch COT sentiment data: {e}")
 
-st.dataframe(df)
+# === Section 3: Geopolitical News ===
+st.header("🌍 Geopolitical & Market News")
+
+try:
+    news_df = fetch_rss_headlines()
+    for index, row in news_df.iterrows():
+        st.markdown(f"- [{row['title']}]({row['link']}) — *{row['published']}*")
+except Exception as e:
+    st.error(f"Failed to fetch news headlines: {e}")
 
 st.markdown("---")
-st.markdown("🔧 **Note:** This is an MVP. Scores are static for now — live feeds from FRED, COT, and news coming soon!")
+st.markdown("✅ Live integrations from **FRED**, **COT**, and **ForexFactory RSS** are now active.")
